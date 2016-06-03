@@ -192,14 +192,16 @@ void Crypto28147SimpleReplacement::encryptGammingFeedback(const std::string inpu
 	std::string substring;
 	unsigned __int64 dataChunkRaw;
 	unsigned __int64 dataChunkEncrypted;	
+	__int64 Senc;
+	unsigned __int64 currentS = S;
 
 	for (int i = 0; i < blocksNumber; i++)
 	{
 		substring = input.substr(i*blockSize, blockSize);
 		dataChunkRaw = str2data(substring);
-		__int64 Senc = oneBlockEncrypt(S);
-		S = dataChunkEncrypted = dataChunkRaw ^ Senc;
-		
+		Senc = oneBlockEncrypt(currentS);
+		dataChunkEncrypted = dataChunkRaw ^ Senc;
+		currentS = dataChunkEncrypted;
 		//output += data2str(dataChunkEncrypted);
 		rawData.push_back(dataChunkEncrypted);
 	}
