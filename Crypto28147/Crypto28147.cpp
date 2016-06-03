@@ -33,20 +33,48 @@ Crypto28147SimpleReplacement::Crypto28147SimpleReplacement(std::string key)
 
 unsigned __int32 Crypto28147SimpleReplacement::addMod32(const unsigned __int32 arg1, const unsigned __int32 arg2) 
 {
-	if ((arg1 + arg2) < ULONG_MAX )
+	if ((arg1 + arg2) < ULONG_MAX)
 	{
 		return (arg1 + arg2);
 	}
-	else 
+	else
 	{
 		return ((arg1 + arg2) - ULONG_MAX);
 	}
 }
 
+// сложение по модулю 2^32-1
+unsigned __int32 Crypto28147SimpleReplacement::addMod32minus1(const unsigned __int32 arg1, const unsigned __int32 arg2)
+{
+	if ((arg1 + arg2) < (ULONG_MAX - 1))
+	{
+		return (arg1 + arg2);
+	}
+	else if (arg1 == ULONG_MAX - 1)
+	{
+		return arg1;
+	}
+	else
+	{
+		return ((arg1 + arg2) - ULONG_MAX + 1);
+	}
+}
+
+unsigned __int64	Crypto28147SimpleReplacement::syncroPackageTransform(const unsigned __int64)
+{
+	unsigned __int32 S0 = 0x0;
+	unsigned __int32 S1 = 0x0;
+	separeteDataBlock(S, S0, S1);
+	S0 = addMod32(S0, C1);
+	S1 = addMod32minus1(S1, C2 - 1) + 1;
+	__int64 retS = mergeToDataBlock(S0, S1);
+	return retS;
+}
+
 // выделение старшей и младшей части из 64 битного числа
 void Crypto28147SimpleReplacement::separeteDataBlock(const unsigned __int64 dataBlock, unsigned __int32& N1, unsigned __int32& N2)
 {
-	N1 =  dataBlock & 0x00000000FFFFFFFF;          // 
+	N1 =  dataBlock & 0x00000000FFFFFFFF;          //
 	N2 =  (dataBlock >> 32) & 0x00000000FFFFFFFF;  // 
 }
 
@@ -98,6 +126,7 @@ void Crypto28147SimpleReplacement::encrypt(const std::string input, std::string&
 		{		
 			throw new IncorrectInputDataExeption();
 		}
+		std::vector<unsigned __int64> rawData;
 		int blocksNumber = input.size() / blockSize;
 		std::string substring;
 		unsigned __int64 dataChunkRaw;
@@ -123,6 +152,66 @@ void Crypto28147SimpleReplacement::encrypt(const std::string input, std::string&
 		std::cout << "Encrypted data is not divide by 8 bytes\n";	
 	}
 }
+
+void Crypto28147SimpleReplacement::encryptGamming(const std::string input, std::string& output)
+{		
+	std::vector<unsigned __int64> rawData;
+	int blocksNumber = input.size() / blockSize;
+	int lastSymbols = input.size() / blockSize;
+	std::string substring;
+	unsigned __int64 dataChunkRaw;
+	unsigned __int64 dataChunkEncrypted;
+
+	// шаг 1
+	S = oneBlockEncrypt(S);
+
+	for (int i = 0; i < blocksNumber; i++)
+	{
+		substring = input.substr(i*blockSize, blockSize);
+		dataChunkRaw = str2data(substring);
+		S = syncroPackageTransform(S);
+		__int64 Senc = oneBlockEncrypt(S);
+		dataChunkEncrypted = dataChunkRaw ^ Senc;
+		//output += data2str(dataChunkEncrypted);
+		rawData.push_back(dataChunkEncrypted);
+	}
+
+	for (std::vector<unsigned __int64>::iterator it = rawData.begin(); it != rawData.end(); it++)
+	{
+		output += data2str(*it);
+	}
+	rawData.clear();
+		
+}
+
+void Crypto28147SimpleReplacement::encryptGammingFeedback(const std::string input, std::string& output)
+{
+	std::vector<unsigned __int64> rawData;
+	int blocksNumber = input.size() / blockSize;
+	int lastSymbols = input.size() / blockSize;
+	std::string substring;
+	unsigned __int64 dataChunkRaw;
+	unsigned __int64 dataChunkEncrypted;	
+
+	for (int i = 0; i < blocksNumber; i++)
+	{
+		substring = input.substr(i*blockSize, blockSize);
+		dataChunkRaw = str2data(substring);
+		__int64 Senc = oneBlockEncrypt(S);
+		S = dataChunkEncrypted = dataChunkRaw ^ Senc;
+		
+		//output += data2str(dataChunkEncrypted);
+		rawData.push_back(dataChunkEncrypted);
+	}
+
+	for (std::vector<unsigned __int64>::iterator it = rawData.begin(); it != rawData.end(); it++)
+	{
+		output += data2str(*it);
+	}
+	rawData.clear();
+
+}
+
 void Crypto28147SimpleReplacement::decrypt(const std::string input, std::string& output)
 {
 	try
@@ -131,6 +220,7 @@ void Crypto28147SimpleReplacement::decrypt(const std::string input, std::string&
 		{			
 			throw new IncorrectInputDataExeption();
 		}
+		std::vector<unsigned __int64> rawData;
 		int blocksNumber = input.length() / blockSize;
 		std::string substring;
 		unsigned __int64 dataChunkRaw;
@@ -155,6 +245,8 @@ void Crypto28147SimpleReplacement::decrypt(const std::string input, std::string&
 		std::cout << "Decrypted data is not divide by 8 bytes\n";	
 	}
 }
+
+
 
 // подстановка из таблицы замен
 unsigned __int32 Crypto28147SimpleReplacement::boxSubstitution(const unsigned __int32 number)
@@ -186,7 +278,7 @@ unsigned __int64 Crypto28147SimpleReplacement::oneBlockEncrypt(unsigned __int64 
 	{
 		for (int j = 0; j < 8; j++)
 		{
-			data = mainCryptoStep(data, secretKey[j],flag);
+			data = mainCryptoStep(data, secretKey[j], flag);
 		}
 	}
 	
@@ -198,12 +290,13 @@ unsigned __int64 Crypto28147SimpleReplacement::oneBlockEncrypt(unsigned __int64 
 	return data;
 }
 
+// расшифрование
 unsigned __int64	Crypto28147SimpleReplacement::oneBlockDecrypt(unsigned __int64 data)
 {
 	bool flag = false;
 	for (int j = 0; j < 8; j++)
 	{
-		data = mainCryptoStep(data, secretKey[j],flag);
+		data = mainCryptoStep(data, secretKey[j], flag);
 	}
 	
 	for (int i = 0; i < 3; i++)
@@ -218,6 +311,22 @@ unsigned __int64	Crypto28147SimpleReplacement::oneBlockDecrypt(unsigned __int64 
 	return data;
 }
 
+// выработка имитовставки
+unsigned __int64	Crypto28147SimpleReplacement::oneBlockAuthCode(unsigned __int64 data)
+{
+	bool flag = false;	
+
+	for (int i = 0; i < 2; i++)
+	{
+		for (int j = 0; j < 8; j++)
+		{
+			if (i == 1 && j == 7)
+				flag = true;
+			data = mainCryptoStep(data, secretKey[j], flag);
+		}
+	}
+	return data;
+}
 
 void Crypto28147SimpleReplacement::str2key(const std::string inputKeyStr, unsigned __int32* key)
 {

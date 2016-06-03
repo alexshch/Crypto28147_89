@@ -47,6 +47,24 @@ int main(int argc, char* argv[])
 				std::cout << decrypted << std::endl;				
 			}
 		}
+		else if (0 == strcmp(argv[1], "-deGamma"))
+		{
+			std::string inputLine;
+			while (std::getline(std::cin, inputLine))
+			{
+				crp.encryptGamming(inputLine, decrypted);
+				std::cout << decrypted << std::endl;
+			}
+		}
+		else if (0 == strcmp(argv[1], "-deGammaFb"))
+		{
+			std::string inputLine;
+			while (std::getline(std::cin, inputLine))
+			{
+				crp.encryptGammingFeedback(inputLine, decrypted);
+				std::cout << decrypted << std::endl;
+			}
+		}
 		else
 		{
 			std::cout << "Unknown cmd args\n";
